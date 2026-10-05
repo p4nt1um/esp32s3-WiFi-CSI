@@ -1,0 +1,4 @@
+## IDF Component Manager Manifest File
+dependencies:
+  idf: ">=5.0"
+  # esp_csi_gain_ctrl 仅支持 S3/C3/C5/C6/C61，原版 ESP32 不引入

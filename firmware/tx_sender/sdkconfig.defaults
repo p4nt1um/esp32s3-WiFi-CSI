@@ -1,0 +1,2 @@
+# TX 发包器：控制台走 S3 原生 USB-Serial/JTAG（本板用 USB 口而非 UART 桥接）
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>CSI 双链呼吸监测</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; margin: 0; background: #111; color: #ddd; }
+  header { padding: 10px 20px; background: #1a1a2e; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+  header h1 { font-size: 15px; margin: 0; }
+  .dev-badge { display: flex; gap: 8px; align-items: baseline; font-size: 13px; padding: 4px 12px; border-radius: 6px; }
+  .dev-badge .bpm { font-size: 22px; font-weight: bold; }
+  .rx1-badge { background: #1a3040; border: 1px solid #2a5060; }
+  .rx2-badge { background: #401a30; border: 1px solid #602a50; }
+  .offline { opacity: 0.4; }
+  #status { font-size: 12px; color: #8f8; }
+  #status.bad { color: #f88; }
+  main { padding: 12px 16px; }
+  .controls { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; font-size: 12px; }
+  select, button { background: #222; color: #ddd; border: 1px solid #444; padding: 3px 8px; border-radius: 4px; }
+  .dual { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .col { background: #161616; border-radius: 8px; padding: 10px; }
+  .col h3 { margin: 0 0 6px 0; font-size: 13px; color: #aaa; }
+  canvas { width: 100%; height: 180px; background: #101010; border-radius: 6px; }
+  .wf-canvas { height: 200px; }
+  .kpis { font-size: 11px; color: #9d9; margin-top: 4px; min-height: 14px; }
+  @media (max-width: 900px) { .dual { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>CSI 双链呼吸监测</h1>
+  <div class="dev-badge rx1-badge" id="badge-rx1">
+    <span>RX1</span> <span class="bpm" id="bpm-rx1">--</span> <span id="val-rx1"></span>
+  </div>
+  <div class="dev-badge rx2-badge" id="badge-rx2">
+    <span>RX2</span> <span class="bpm" id="bpm-rx2">--</span> <span id="val-rx2"></span>
+  </div>
+  <span id="status" class="bad">连接中…</span>
+</header>
+<main>
+  <div class="controls">
+    <label>时间窗
+      <select id="hours">
+        <option value="0.05">3 分钟</option>
+        <option value="0.2">12 分钟</option>
+        <option value="1" selected>1 小时</option>
+        <option value="6">6 小时</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="validOnly" checked> 仅有效窗</label>
+    <button id="refresh">刷新</button>
+    <span style="color:#666">每 5 秒自动刷新</span>
+  </div>
+  <div class="dual">
+    <div class="col">
+      <h3>RX1 呼吸率（头脚方向）</h3>
+      <canvas id="chart1" width="800" height="360"></canvas>
+      <div class="kpis" id="kpis1"></div>
+      <h3 style="margin-top:8px">RX1 CSI 瀑布图</h3>
+      <canvas id="wf1" class="wf-canvas" width="800" height="400"></canvas>
+    </div>
+    <div class="col">
+      <h3>RX2 呼吸率（侧向）</h3>
+      <canvas id="chart2" width="800" height="360"></canvas>
+      <div class="kpis" id="kpis2"></div>
+      <h3 style="margin-top:8px">RX2 CSI 瀑布图</h3>
+      <canvas id="wf2" class="wf-canvas" width="800" height="400"></canvas>
+    </div>
+  </div>
+</main>
+<script>
+const DEVICES = ['rx1', 'rx2'];
+let timer = null;
+
+async function fetchJSON(url) {
+  try { return await (await fetch(url)).json(); }
+  catch (e) { return null; }
+}
+
+async function refreshHealth() {
+  const h = await fetchJSON('/api/health');
+  const el = document.getElementById('status');
+  if (!h) { el.textContent = '后端不可达'; el.className = 'bad'; return; }
+  el.textContent = h.broker_connected ? 'broker 已连接' : 'broker 断开';
+  el.className = h.broker_connected ? '' : 'bad';
+}
+
+async function refreshBadges() {
+  const devs = await fetchJSON('/api/devices') || [];
+  for (const d of devs) {
+    const bpmEl = document.getElementById(`bpm-${d.device}`);
+    const valEl = document.getElementById(`val-${d.device}`);
+    const badge = document.getElementById(`badge-${d.device}`);
+    if (!bpmEl) continue;
+    if (d.last_bpm != null && d.last_valid) {
+      bpmEl.textContent = d.last_bpm.toFixed(1);
+      valEl.textContent = 'bpm ✓';
+      badge.classList.remove('offline');
+    } else if (d.last_msg_ms != null) {
+      bpmEl.textContent = '--';
+      valEl.textContent = '无效';
+      badge.classList.remove('offline');
+    } else {
+      bpmEl.textContent = '--';
+      valEl.textContent = '离线';
+      badge.classList.add('offline');
+    }
+  }
+}
+
+async function refreshChart(devId, canvasId, kpisId) {
+  const cv = document.getElementById(canvasId), ctx = cv.getContext('2d');
+  const hours = document.getElementById('hours').value;
+  const vo = document.getElementById('validOnly').checked ? '&valid_only=true' : '';
+  const hist = await fetchJSON(`/api/breath/history?device=${devId}&hours=${hours}&limit=1000${vo}`);
+  const kp = document.getElementById(kpisId);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  if (!hist || !hist.t || hist.t.length === 0) {
+    kp.textContent = '无数据';
+    return;
+  }
+  const t = hist.t, bpm = hist.bpm, valid = hist.valid, n = t.length;
+  const validCnt = valid.reduce((a, v) => a + v, 0);
+  const vals = bpm.filter(v => v != null);
+  kp.textContent = n ? `样本 ${n} | 有效 ${validCnt} (${Math.round(validCnt/n*100)}%)` : '';
+  if (!vals.length) return;
+  const tMin = t[0], tMax = Math.max(t[n-1], tMin + 1);
+  const yMin = Math.max(0, Math.floor(Math.min(...vals) - 2));
+  const yMax = Math.ceil(Math.max(...vals) + 2);
+  const pad = 36;
+  const X = i => pad + (t[i]-tMin) / (tMax-tMin) * (cv.width - 2*pad);
+  const Y = v => cv.height - pad - (v-yMin) / (yMax-yMin) * (cv.height - 2*pad);
+  ctx.strokeStyle = '#333'; ctx.fillStyle = '#666'; ctx.font = '11px system-ui';
+  for (let k = 0; k <= 5; k++) {
+    const v = yMin + (yMax-yMin)*k/5, y = Y(v);
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(cv.width-pad, y); ctx.stroke();
+    ctx.fillText(v.toFixed(0), 4, y+4);
+  }
+  ctx.lineWidth = 2; ctx.strokeStyle = '#4ecdc4';
+  ctx.beginPath();
+  let drawing = false;
+  for (let i = 0; i < n; i++) {
+    if (valid[i] && bpm[i] != null) {
+      if (!drawing) { ctx.moveTo(X(i), Y(bpm[i])); drawing = true; }
+      else ctx.lineTo(X(i), Y(bpm[i]));
+    } else drawing = false;
+  }
+  ctx.stroke();
+  ctx.fillStyle = '#888';
+  for (let i = 0; i < n; i++) if (!valid[i]) ctx.fillRect(X(i)-1, pad, 2, cv.height - 2*pad);
+  ctx.fillStyle = '#666'; ctx.font = '10px system-ui';
+  ctx.fillText('bpm', 6, 14);
+  const ago = Math.round((Date.now()/1000 - tMax));
+  ctx.fillText(ago < 90 ? `${ago}s 前` : `${Math.round(ago/60)}m 前`, cv.width-pad-40, cv.height-6);
+}
+
+async function refreshWaterfall(devId, canvasId) {
+  const cv = document.getElementById(canvasId), ctx = cv.getContext('2d');
+  const d = await fetchJSON(`/api/amp/waterfall?device=${devId}&seconds=30`);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  if (!d || !d.t || d.t.length < 10) return;
+  const nT = d.t.length, nS = d.amp[0] ? d.amp[0].length : 0;
+  if (!nT || !nS) return;
+
+  // 去DC + 每子载波 z-score 归一化（放大呼吸调制，条纹可见）
+  const means = new Array(nS).fill(0);
+  const stds = new Array(nS).fill(0.01);
+  for (let k = 0; k < nS; k++) {
+    let sum = 0;
+    for (let i = 0; i < nT; i++) sum += d.amp[i][k];
+    means[k] = sum / nT;
+    let sq = 0;
+    for (let i = 0; i < nT; i++) sq += (d.amp[i][k] - means[k]) ** 2;
+    stds[k] = Math.sqrt(sq / nT) || 0.01;
+  }
+
+  const pad = 30, x0 = pad, y0 = 6;
+  const cw = (cv.width - 2*pad) / nT, ch = (cv.height - pad - y0) / nS;
+  for (let i = 0; i < nT; i++) {
+    for (let k = 0; k < nS; k++) {
+      const z = (d.amp[i][k] - means[k]) / stds[k];
+      const c = Math.max(0, Math.min(1, (z + 3) / 6));  // z∈[-3,3]→c∈[0,1]
+      let r, g, b;
+      if (c < 0.5) { b = 255; r = Math.round(510*c); g = Math.round(510*c); }
+      else { r = 255; g = Math.round(510*(1-c)); b = Math.round(510*(1-c)); }
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(x0 + i*cw, y0 + k*ch, Math.ceil(cw), Math.ceil(ch));
+    }
+  }
+  ctx.fillStyle = '#888'; ctx.font = '10px system-ui';
+  ctx.fillText('-30s', pad, cv.height - 4);
+  ctx.fillText('now', cv.width - pad - 20, cv.height - 4);
+  ctx.fillText('z-score ±3σ', 4, cv.height/2);
+  // 图例色条
+  for (let j = 0; j < 20; j++) {
+    const c = j / 19;
+    let r, g, b;
+    if (c < 0.5) { b = 255; r = Math.round(510*c); g = Math.round(510*c); }
+    else { r = 255; g = Math.round(510*(1-c)); b = Math.round(510*(1-c)); }
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(cv.width/2 - 50 + j*5, cv.height - 10, 5, 6);
+  }
+  ctx.fillText('-3σ', cv.width/2 - 70, cv.height - 4);
+  ctx.fillText('+3σ', cv.width/2 + 55, cv.height - 4);
+}
+
+async function tick() {
+  await refreshHealth();
+  await refreshBadges();
+  for (const dev of DEVICES) {
+    const num = dev.slice(-1);
+    await refreshChart(dev, `chart${num}`, `kpis${num}`);
+    await refreshWaterfall(dev, `wf${num}`);
+  }
+}
+
+document.getElementById('refresh').onclick = tick;
+['hours', 'validOnly'].forEach(id => document.getElementById(id).onchange = tick);
+tick();
+timer = setInterval(tick, 5000);
+</script>
+</body>
+</html>

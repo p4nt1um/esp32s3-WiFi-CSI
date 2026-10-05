@@ -1,0 +1,12 @@
+# RX 采集器：串口 CSV 高速输出，用 2M 波特率
+CONFIG_ESP_CONSOLE_UART_CUSTOM=y
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=2000000
+# WiFi 驱动的 CSI 功能总开关
+CONFIG_ESP_WIFI_CSI_ENABLED=y
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=128
+
+# MQTT 上行（Phase A：连路由器 + amp/stat 发布）
+CONFIG_RX_MQTT_ENABLE=y
+# WiFi 凭据不放这里（见同目录 sdkconfig.secrets，已被 .gitignore 排除）
+CONFIG_RX_MQTT_URI="mqtt://192.168.1.6:11883"
+CONFIG_RX_MQTT_TOPIC_PREFIX="csi/rx2"

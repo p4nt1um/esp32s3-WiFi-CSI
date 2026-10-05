@@ -1,0 +1,62 @@
+menu "RX Collector Configuration"
+
+    config RX_DEFAULT_CHANNEL
+        int "Default WiFi channel (must match TX; ignored when MQTT/STA enabled - then follows router)"
+        range 1 13
+        default 11
+
+    config RX_CSV_DEFAULT_ON
+        bool "Output CSI CSV on UART by default"
+        default y
+
+    config RX_BANDWIDTH_HT40
+        bool "Use HT40 bandwidth (default HT20 per project plan; must match TX)"
+        default n
+
+    config RX_RING_BUF_ITEMS
+        int "CSI ring buffer capacity (records, ~180B each)"
+        range 64 2048
+        default 512
+
+    config RX_MQTT_ENABLE
+        bool "Enable MQTT uplink (requires joining home router as STA)"
+        default n
+        help
+            When enabled, RX joins the router (channel then follows the router -
+            TX must be on the same channel) and publishes 1 Hz mean amplitude
+            plus stats. Requires ssid/password/uri below.
+
+    config RX_WIFI_SSID
+        string "Router SSID for MQTT mode"
+        default ""
+
+    config RX_WIFI_PASSWORD
+        string "Router password for MQTT mode"
+        default ""
+
+    config RX_MQTT_URI
+        string "MQTT broker URI"
+        default "mqtt://192.168.1.10:1883"
+
+    config RX_MQTT_TOPIC_PREFIX
+        string "MQTT topic prefix"
+        default "csi/rx1"
+
+    config RX_REPLAY_ENABLE
+        bool "Enable CSV replay over UART1 (M2a parity/regression tool)"
+        default y
+
+    config RX_REPLAY_UART_RX_PIN
+        int "Replay UART1 RX GPIO"
+        default 5
+
+    config RX_REPLAY_UART_BAUD
+        int "Replay UART baud rate"
+        default 921600
+
+    config RX_REPLAY_MAX_SAMPLES
+        int "Max replay samples (100Hz domain)"
+        range 600 20000
+        default 4000
+
+endmenu

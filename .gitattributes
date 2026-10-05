@@ -1,0 +1,9 @@
+# 统一换行符处理：文本文件按平台自动规范化，仓库内保持 LF
+* text=auto
+
+# 二进制文件不做任何转换
+*.png binary
+*.db binary
+*.bin binary
+*.elf binary
+*.uf2 binary

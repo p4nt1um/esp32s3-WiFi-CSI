@@ -1,0 +1,17 @@
+menu "TX Sender Configuration"
+
+    config TX_DEFAULT_CHANNEL
+        int "Default WiFi channel (must match RX and router)"
+        range 1 13
+        default 11
+
+    config TX_DEFAULT_RATE_HZ
+        int "Default ESP-NOW send rate (Hz)"
+        range 10 200
+        default 100
+
+    config TX_BANDWIDTH_HT40
+        bool "Use HT40 bandwidth (default HT20 per project plan)"
+        default n
+
+endmenu
