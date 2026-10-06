@@ -35,7 +35,7 @@
 │   ├── rx_collector/       RX1 固件（S3）：CSI 采集 + 增益补偿 + MQTT 批量上行 + replay 对拍
 │   ├── rx2_collector/      RX2 固件（原版 ESP32）：简化对照链路
 │   └── components/csi_core/  平台无关纯 C 呼吸算法（与 Python 金标准严格同构）
-├── analysis/               Python DSP 管线（金标准实现）+ 合成数据测试 + 对拍脚本
+├── analysis/               Python DSP 管线（金标准实现）+ 合成数据测试 + 对拍脚本 + 睡眠质量报告生成器
 ├── backend/                FastAPI + SQLite + paho-mqtt + 原生 canvas 仪表盘
 ├── docs/                   项目方案 v1.1 与 M0–M3 里程碑笔记（含完整排障记录）
 └── idf.bat                 ESP-IDF 构建包装脚本（Windows）
@@ -143,6 +143,8 @@ python -m csi_pipeline breath input.csv     # 九级管线 + 逐窗结果
 | 事项 | 状态 |
 |------|------|
 | 静止单人呼吸 MAE ≤ 2 bpm | ✅ 0.46–0.85 bpm |
+| 整夜无人值守睡眠监测 | ✅ 首夜 5.7h 连续（中位 8.4bpm、入睡点/翻身/觉醒全捕获），见 docs/M4 笔记 |
+| 睡眠质量报告 | ✅ `sleep_report.py`（入睡潜伏期/翻身/觉醒负荷/呼吸暂停代理） |
 | 走动期间挂起 ≥ 90% | ✅ 97–100% |
 | 侧卧（弱信号）| ✅ 相干轨迹确认后可用（拥塞信道下的干扰轨迹问题归入 M3 模型判别） |
 | 有效窗覆盖率 | 58–72%（趋势监测达标，连续监测待侧卧干扰轨问题解决） |

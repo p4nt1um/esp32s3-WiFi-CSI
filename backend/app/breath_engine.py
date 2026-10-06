@@ -108,6 +108,10 @@ class BreathEngine:
         idx = sorted(range(amp_u.shape[1]), key=lambda k_: (-rq[k_], k_))[:TOPK]
         agg = amp_u[:, idx].mean(axis=1)
 
+        # ⑤ top-K 聚合信号的原始幅度（带通前）——体动判别用：
+        # 体动 → raw_std 暴涨；呼吸暂停 → 呼吸带功率塌缩而 raw_std 不变
+        raw_std = float(np.std(agg))
+
         # ⑤ 带通
         sos = butter(4, BREATH_BAND, btype="bandpass", fs=FS, output="sos")
         y = sosfilt(sos, agg)
@@ -176,13 +180,22 @@ class BreathEngine:
                 confirmed[i] = abs(est[i] - med) <= COH_TOL_BPM
 
         valid_ones = est[confirmed]
+        # 逐窗指标（取窗中位，供落库与报告级分析）
+        metrics = {
+            "ratio": round(float(np.median([r["ratio"] for r in results])), 2),
+            "band_power": float(np.median([r["power"] for r in results])),
+            "raw_std": round(raw_std, 3),
+            # 缓冲时间轴缺口占比（丢包代理）：理想跨度(样本数/10Hz) / 实际跨度
+            "loss": round(1.0 - (len(t) - 1) * (1.0 / FS) / max(t[-1] - t[0], 1e-6), 3) if len(t) > 1 else 0.0,
+        }
         if len(valid_ones) > 0:
             bpm = float(np.median(valid_ones))
             conf = float(len(valid_ones) / len(results))
             self._last_result = {"bpm": round(bpm, 1), "valid": True, "conf": round(conf, 2),
-                                 "windows": len(results), "confirmed": int(confirmed.sum())}
+                                 "windows": len(results), "confirmed": int(confirmed.sum()),
+                                 **metrics}
         else:
             self._last_result = {"bpm": None, "valid": False, "conf": 0.0,
                                  "windows": len(results), "confirmed": 0,
-                                 "reason": "no_coherent"}
+                                 "reason": "no_coherent", **metrics}
         return self._last_result

@@ -105,7 +105,8 @@ class MqttBridge:
                     result = eng.compute()
                     if result:
                         self._db.add_breath(device, result.get("bpm"),
-                                            result.get("valid", False), result.get("conf"))
+                                            result.get("valid", False), result.get("conf"),
+                                            metrics=result)
                 except Exception as e:
                     print(f"[breath_tick] {device} compute error: {e}")
         except Exception as e:

@@ -33,12 +33,22 @@ class Database:
         self._lock = threading.Lock()
         with self._lock, self._conn:
             self._conn.executescript(_SCHEMA)
+            # 增量迁移：睡眠报告所需逐窗指标（老库/老行该列恒 NULL）
+            for col in ("ratio", "band_power", "raw_std", "loss"):
+                try:
+                    self._conn.execute(f"ALTER TABLE breath ADD COLUMN {col} REAL")
+                except sqlite3.OperationalError:
+                    pass    # 列已存在
 
-    def add_breath(self, device: str, bpm: float | None, valid: bool, conf: float | None) -> None:
+    def add_breath(self, device: str, bpm: float | None, valid: bool, conf: float | None,
+                   metrics: dict | None = None) -> None:
+        m = metrics or {}
         with self._lock, self._conn:
             self._conn.execute(
-                "INSERT INTO breath(ts, device, bpm, valid, conf) VALUES (?,?,?,?,?)",
-                (int(time.time()), device, bpm, int(valid), conf))
+                "INSERT INTO breath(ts, device, bpm, valid, conf, ratio, band_power, raw_std, loss) "
+                "VALUES (?,?,?,?,?,?,?,?,?)",
+                (int(time.time()), device, bpm, int(valid), conf,
+                 m.get("ratio"), m.get("band_power"), m.get("raw_std"), m.get("loss")))
 
     def add_stat(self, device: str, rx: int, drop_cnt: int) -> None:
         with self._lock, self._conn:

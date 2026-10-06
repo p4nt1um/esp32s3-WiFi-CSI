@@ -220,7 +220,9 @@ static void wifi_init_fixed_channel(void)
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-    ESP_ERROR_CHECK(esp_wifi_set_mac(WIFI_IF_STA, s_tx_mac));   /* 对齐 esp-radar：start 前设 MAC */
+    /* 不设自定义 MAC：RX 自身 MAC 只需唯一（出厂 MAC 即可）。
+     * 曾对齐 esp-radar 设成 TX 的 1a:00:00:00:00:00 → 两块 RX 同 MAC 连路由器互相顶掉
+     * （2026-10-05 夜双 RX 同时失联事故根因），s_tx_mac 仅用于 CSI 来源过滤。 */
     esp_netif_create_default_wifi_sta();
     wifi_protocols_t protocols = { .ghz_2g = WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N };
     ESP_ERROR_CHECK(esp_wifi_set_protocols(ESP_IF_WIFI_STA, &protocols));
