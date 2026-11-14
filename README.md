@@ -4,6 +4,14 @@
 
 > 定位：日常趋势监测，非医疗级。走动/体动期间正确挂起输出（97%）而非给出错误读数，是本系统的设计原则之一。
 
+## 示例：整夜睡眠报告（智能手表风格）
+
+真实整夜数据（2026-10-06 夜，单人，双 RX 冗余采集，7.9h 连续零断流）由 `analysis/tools/sleep_card.py` 自动生成：
+
+![睡眠卡片示例](docs/images/sleep_card_example.png)
+
+包含：入睡点/翻身/起夜标注、呼吸代理分期（慢而稳→深睡、快→REM，星号标记非医学分期）、逐窗呼吸率曲线与信号质量条；配套的 `sleep_report.py` 另输出完整文字报告（逐小时呼吸统计、体动分型、呼吸暂停代理扫描）。生成方式见 §6 快速开始。
+
 ## 1. 系统架构
 
 ```
@@ -136,6 +144,15 @@ cd backend && python -m venv .venv && .venv/Scripts/pip install -r requirements.
 ```bash
 cd analysis && pip install -r requirements.txt
 python -m csi_pipeline breath input.csv     # 九级管线 + 逐窗结果
+```
+
+### 睡眠质量报告（需后端已积累整夜数据）
+
+```bash
+# 完整文字报告：入睡/翻身/觉醒/呼吸暂停代理扫描 + 整夜图
+analysis/.venv/Scripts/python.exe analysis/tools/sleep_report.py --from "2026-10-07 00:05" --to "2026-10-07 08:30"
+# 智手表风格卡片（顶部示例图的来源）
+analysis/.venv/Scripts/python.exe analysis/tools/sleep_card.py   --from "2026-10-07 00:05" --to "2026-10-07 08:30"
 ```
 
 ## 7. 已知限制与路线图
